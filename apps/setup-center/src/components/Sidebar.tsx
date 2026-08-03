@@ -1,0 +1,796 @@
+import { Fragment, useState, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import type { StepId, Step, ViewId, PluginUIApp } from "../types";
+import {
+  IconChat, IconIM, IconSkills, IconStatus, IconConfig,
+  IconChevronDown, IconChevronRight,
+  IconZap, IconPlug, IconCalendar,
+  IconBrain, IconUsers, IconBot,
+  IconGear, IconBook, IconStorefront, IconPuzzle, IconFingerprint, IconLayoutGrid,
+  IconShield, IconRadar, IconBuilding, IconBarChart, IconUser, IconLogout,
+} from "../icons";
+import logoUrl from "../assets/logo.png";
+import { ReleaseNotesDialog, normalizeReleaseVersion } from "./ReleaseNotesDialog";
+import {
+  isRuoyiAuthEnabled,
+  fetchRuoyiCurrentUser,
+  type RuoyiUserInfo,
+} from "../platform/ruoyi";
+
+export type SidebarProps = {
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  view: ViewId;
+  onViewChange: (v: ViewId) => void;
+  configExpanded: boolean;
+  onToggleConfig: () => void;
+  steps: Step[];
+  stepId: StepId;
+  onStepChange: (id: StepId) => void;
+  disabledViews: string[];
+  storeVisible: boolean;
+  desktopVersion: string;
+  backendVersion: string | null;
+  serviceRunning: boolean;
+  onRefreshStatus: () => Promise<void>;
+  isWeb?: boolean;
+  mobileOpen?: boolean;
+  httpApiBase?: string;
+  unreadFeedbackCount?: number;
+  pendingApprovalsCount?: number;
+  /** [OpenAkita-RuoYi] 退出登录回调 */
+  onLogout?: () => void | Promise<void>;
+};
+
+const stepIcons: Partial<Record<StepId, React.ReactNode>> = {
+  llm: <IconZap size={14} />,
+  im: <IconIM size={14} />,
+  tools: <IconSkills size={14} />,
+  agent: <IconBot size={14} />,
+  workspace: <IconBook size={14} />,
+  advanced: <IconGear size={14} />,
+};
+
+function StepDot({ stepId: sid }: { stepId: StepId }) {
+  return <div className="stepDot">{stepIcons[sid]}</div>;
+}
+
+type NavGroupId = "capabilities" | "apps" | "monitor" | "multiAgent" | "store";
+const GROUP_ICON_SIZE = 16;
+
+const BETA_SUP = <sup style={{ fontSize: 9, color: "var(--primary, #3b82f6)", fontWeight: 600 }}>Beta</sup>;
+
+function NavGroupHeader({
+  collapsed: sidebarCollapsed,
+  icon,
+  label,
+  expanded,
+  onToggle,
+}: {
+  collapsed: boolean;
+  icon: React.ReactNode;
+  label: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="navGroupHeader" onClick={onToggle} role="button" tabIndex={0} title={sidebarCollapsed ? label : undefined}>
+      {!sidebarCollapsed ? (
+        <>
+          <span className="navGroupLabelWrap">
+            <span className="navGroupIcon">{icon}</span>
+            <span className="navGroupLabel">{label}</span>
+          </span>
+          <span className="navGroupChevron">
+            {expanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
+          </span>
+        </>
+      ) : (
+        <span className="navGroupIcon navGroupIconCollapsed">{icon}</span>
+      )}
+    </div>
+  );
+}
+
+export function Sidebar({
+  collapsed, onToggleCollapsed,
+  view, onViewChange,
+  configExpanded, onToggleConfig,
+  steps, stepId, onStepChange,
+  disabledViews,
+  storeVisible,
+  desktopVersion, backendVersion, serviceRunning,
+  onRefreshStatus, isWeb, mobileOpen, httpApiBase,
+  unreadFeedbackCount, pendingApprovalsCount,
+  onLogout,
+}: SidebarProps) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
+  // Pick a localized plugin app title from `title_i18n`, falling back to the
+  // default `title` string. Mirror of pickI18n() in PluginManagerView so the
+  // sidebar and the manager list always show the same label per language.
+  const pickAppTitle = (app: PluginUIApp): string => {
+    const dict = app.title_i18n;
+    if (dict && typeof dict === "object") {
+      if (dict[lang]) return dict[lang];
+      const base = lang.split("-")[0];
+      if (base && dict[base]) return dict[base];
+      if (dict.en) return dict.en;
+      const first = Object.values(dict).find(v => typeof v === "string" && v);
+      if (first) return first;
+    }
+    return app.title;
+  };
+
+  const [expandedGroups, setExpandedGroups] = useState<Record<NavGroupId, boolean>>({
+    capabilities: false,
+    apps: false,
+    monitor: false,
+    multiAgent: false,
+    store: false,
+  });
+
+  const toggleGroup = useCallback((id: NavGroupId) => {
+    setExpandedGroups(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  // [OpenAkita-RuoYi] 侧栏底部账号信息
+  const showAccount = isRuoyiAuthEnabled() && !!onLogout;
+  const [account, setAccount] = useState<RuoyiUserInfo | null>(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showAccount) {
+      setAccount(null);
+      return;
+    }
+    let cancelled = false;
+    fetchRuoyiCurrentUser().then((u) => {
+      if (!cancelled) setAccount(u);
+    });
+    return () => { cancelled = true; };
+  }, [showAccount]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onDocDown = (e: MouseEvent) => {
+      const el = accountMenuRef.current;
+      if (el && !el.contains(e.target as Node)) setAccountMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAccountMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [accountMenuOpen]);
+
+  const displayName = (account?.nickname || account?.username || "").trim();
+  const accountInitial = (displayName || "?").charAt(0).toUpperCase();
+
+  const handleLogout = useCallback(async () => {
+    if (!onLogout || loggingOut) return;
+    setLoggingOut(true);
+    setAccountMenuOpen(false);
+    try {
+      await onLogout();
+    } finally {
+      setLoggingOut(false);
+    }
+  }, [onLogout, loggingOut]);
+
+  const renderAccountMenu = (compact: boolean) => (
+    <div
+      role="menu"
+      style={{
+        position: "absolute",
+        left: compact ? "50%" : 8,
+        right: compact ? "auto" : 8,
+        bottom: "100%",
+        marginBottom: 6,
+        transform: compact ? "translateX(-50%)" : undefined,
+        minWidth: compact ? 160 : undefined,
+        background: "var(--panel, var(--bg, #fff))",
+        border: "1px solid var(--line)",
+        borderRadius: 10,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        zIndex: 50,
+        padding: 6,
+        opacity: 1,
+      }}
+    >
+      {account && (
+        <div style={{
+          padding: "8px 10px 6px",
+          fontSize: 11,
+          color: "var(--muted, #888)",
+          borderBottom: "1px solid var(--line)",
+          marginBottom: 4,
+          lineHeight: 1.4,
+        }}>
+          <div style={{ fontWeight: 600, color: "var(--text, var(--fg))", fontSize: 12 }}>
+            {displayName || t("sidebar.account")}
+          </div>
+          {account.nickname && account.username && account.nickname !== account.username && (
+            <div>@{account.username}</div>
+          )}
+        </div>
+      )}
+      <button
+        type="button"
+        role="menuitem"
+        disabled={loggingOut}
+        onClick={() => { void handleLogout(); }}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 10px",
+          border: "none",
+          background: "transparent",
+          borderRadius: 8,
+          cursor: loggingOut ? "wait" : "pointer",
+          color: "#dc2626",
+          fontSize: 13,
+          textAlign: "left",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--nav-hover, rgba(0,0,0,0.06))"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+      >
+        <IconLogout size={14} />
+        {t("sidebar.logout")}
+      </button>
+      {/* [OpenAkita-RuoYi] 账号菜单内隐藏版本号
+      <div style={{
+        padding: "6px 10px 4px",
+        fontSize: 10,
+        color: "var(--muted, #888)",
+        borderTop: "1px solid var(--line)",
+        marginTop: 4,
+        lineHeight: 1.5,
+      }}>
+        {isWeb ? "Web" : "Desktop"} v{desktopVersion}
+        {backendVersion ? ` · Backend v${backendVersion}` : ""}
+      </div>
+      */}
+    </div>
+  );
+
+  const [pluginApps, setPluginApps] = useState<PluginUIApp[]>([]);
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
+  const releaseNotesVersion = normalizeReleaseVersion(desktopVersion);
+
+  // Refetch the Apps sidebar list. Triggered initially, when backend
+  // availability changes, and on the global "openakita:plugin-apps-changed"
+  // event dispatched by PluginManagerView after install/enable/disable/etc.
+  //
+  // Tauri can mark the backend process as "running" before FastAPI has mounted
+  // plugin UI routes. Use sparse startup retries as a fallback; the main
+  // trigger is the backend-ready event dispatched after /api/health succeeds.
+  useEffect(() => {
+    if (!httpApiBase || !serviceRunning) { setPluginApps([]); return; }
+    let cancelled = false;
+    const retryDelays = [2_000, 8_000, 20_000, 60_000, 120_000];
+    const timers = new Set<ReturnType<typeof setTimeout>>();
+
+    const clearTimers = () => {
+      timers.forEach(timer => clearTimeout(timer));
+      timers.clear();
+    };
+
+    const scheduleRetry = (attempt: number) => {
+      const delay = retryDelays[attempt];
+      if (delay == null) return false;
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        void refetch(attempt + 1);
+      }, delay);
+      timers.add(timer);
+      return true;
+    };
+
+    const refetch = async (attempt = 0) => {
+      try {
+        const r = await fetch(`${httpApiBase}/api/plugins/ui-apps`);
+        const data = r.ok ? await r.json() : [];
+        if (cancelled) return;
+        const apps = Array.isArray(data) ? data : [];
+        setPluginApps(apps);
+        if (apps.length === 0) scheduleRetry(attempt);
+      } catch {
+        if (cancelled) return;
+        if (!scheduleRetry(attempt)) setPluginApps([]);
+      }
+    };
+
+    refetch();
+    const onChanged = () => {
+      clearTimers();
+      void refetch();
+    };
+    window.addEventListener("openakita:plugin-apps-changed", onChanged);
+    return () => {
+      cancelled = true;
+      clearTimers();
+      window.removeEventListener("openakita:plugin-apps-changed", onChanged);
+    };
+  }, [httpApiBase, serviceRunning]);
+
+  const capViews: ViewId[] = ["skills", "mcp", "plugins", "memory", "scheduler"];
+  const monViews: ViewId[] = ["token_stats", "skill_usage", "security", "pending_approvals"];
+  const maViews: ViewId[] = ["dashboard", "org_editor", "pixel_office", "agent_manager"];
+  const stViews: ViewId[] = ["agent_store", "skill_store"];
+
+  const prevViewRef = useRef(view);
+  useEffect(() => {
+    if (prevViewRef.current === view) return;
+    prevViewRef.current = view;
+    const groupOf = (v: ViewId): NavGroupId | null =>
+      capViews.includes(v) ? "capabilities"
+        : monViews.includes(v) ? "monitor"
+        : maViews.includes(v) ? "multiAgent"
+        : stViews.includes(v) ? "store"
+        : (typeof v === "string" && v.startsWith("plugin_app:")) ? "apps"
+        : null;
+    const g = groupOf(view);
+    if (g) setExpandedGroups(prev => ({ ...prev, [g]: true }));
+  }, [view]);
+
+  const capExpanded = expandedGroups.capabilities;
+  const appsExpanded = expandedGroups.apps;
+  const monExpanded = expandedGroups.monitor;
+  const maExpanded = expandedGroups.multiAgent;
+  const stExpanded = expandedGroups.store;
+
+  return (
+    <aside className={`sidebar ${collapsed ? "sidebarCollapsed" : ""}${mobileOpen ? " sidebarOpen" : ""}`}>
+      <div className="sidebarHeader">
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <img
+            src={logoUrl}
+            alt="器灵Vess"
+            className="brandLogo"
+            onClick={onToggleCollapsed}
+            style={{ cursor: "pointer" }}
+            title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+          />
+          {!collapsed && (
+            <div>
+              <div className="brandTitle">{t("brand.title")}</div>
+              <div className="brandSub">{t("brand.sub")}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="sidebarNav">
+        {/* ── Primary: always visible ── */}
+        <div className={`navItem ${view === "chat" ? "navItemActive" : ""}`} onClick={() => onViewChange("chat")} role="button" tabIndex={0} title={t("sidebar.chat")}>
+          <IconChat size={16} /> {!collapsed && <span>{t("sidebar.chat")}</span>}
+        </div>
+        {!disabledViews.includes("im") && (
+          <div className={`navItem ${view === "im" ? "navItemActive" : ""}`} onClick={() => onViewChange("im")} role="button" tabIndex={0} title={t("sidebar.im")}>
+            <IconIM size={16} /> {!collapsed && <span>{t("sidebar.im")}</span>}
+          </div>
+        )}
+        <div className={`navItem ${view === "status" ? "navItemActive" : ""}`} onClick={async () => { onViewChange("status"); try { await onRefreshStatus(); } catch { /* ignore */ } }} role="button" tabIndex={0} title={t("sidebar.status")}>
+          <IconStatus size={16} /> {!collapsed && <span>{t("sidebar.status")}</span>}
+        </div>
+
+        {/* ── Group: Capabilities ── */}
+        <NavGroupHeader collapsed={collapsed} icon={<IconPuzzle size={GROUP_ICON_SIZE} />} label={t("sidebar.groupCapabilities")} expanded={capExpanded} onToggle={() => toggleGroup("capabilities")} />
+        {(collapsed || capExpanded) && (
+          <div className="navGroupItems">
+            {!disabledViews.includes("skills") && (
+              <div className={`navItem ${view === "skills" ? "navItemActive" : ""}`} onClick={() => onViewChange("skills")} role="button" tabIndex={0} title={t("sidebar.skills")}>
+                <IconSkills size={16} /> {!collapsed && <span>{t("sidebar.skills")}</span>}
+              </div>
+            )}
+            {!disabledViews.includes("mcp") && (
+              <div className={`navItem ${view === "mcp" ? "navItemActive" : ""}`} onClick={() => onViewChange("mcp")} role="button" tabIndex={0} title="MCP">
+                <IconPlug size={16} /> {!collapsed && <span>MCP</span>}
+              </div>
+            )}
+            <div className={`navItem ${view === "plugins" ? "navItemActive" : ""}`} onClick={() => onViewChange("plugins")} role="button" tabIndex={0} title={t("sidebar.plugins")}>
+              <IconPuzzle size={16} /> {!collapsed && <span>{t("sidebar.plugins")} {BETA_SUP}</span>}
+            </div>
+            <div className={`navItem ${view === "memory" ? "navItemActive" : ""}`} onClick={() => onViewChange("memory")} role="button" tabIndex={0} title={t("sidebar.memory")}>
+              <IconBrain size={16} /> {!collapsed && <span>{t("sidebar.memory")}</span>}
+            </div>
+            <div className={`navItem ${view === "scheduler" ? "navItemActive" : ""}`} onClick={() => onViewChange("scheduler")} role="button" tabIndex={0} title={t("sidebar.scheduler")}>
+              <IconCalendar size={16} /> {!collapsed && <span>{t("sidebar.scheduler")}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* ── Group: Apps (Plugin 2.0 UI plugins) ── */}
+        {pluginApps.length > 0 && (
+          <>
+            <NavGroupHeader collapsed={collapsed} icon={<IconLayoutGrid size={GROUP_ICON_SIZE} />} label={t("sidebar.groupApps", "Apps")} expanded={appsExpanded} onToggle={() => toggleGroup("apps")} />
+            {(collapsed || appsExpanded) && (
+              <div className="navGroupItems">
+                {pluginApps.map(app => {
+                  const appViewId: ViewId = `plugin_app:${app.id}`;
+                  const appTitle = pickAppTitle(app);
+                  return (
+                    <div
+                      key={app.id}
+                      className={`navItem ${view === appViewId ? "navItemActive" : ""}`}
+                      onClick={() => onViewChange(appViewId)}
+                      role="button"
+                      tabIndex={0}
+                      title={appTitle}
+                    >
+                      {app.icon_url ? (
+                        <img src={`${httpApiBase}${app.icon_url}`} alt="" style={{ width: 16, height: 16, borderRadius: 2 }} />
+                      ) : (
+                        <IconLayoutGrid size={16} />
+                      )}
+                      {!collapsed && <span>{appTitle}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Group: Monitor ── */}
+        <NavGroupHeader collapsed={collapsed} icon={<IconRadar size={GROUP_ICON_SIZE} />} label={t("sidebar.groupMonitor")} expanded={monExpanded} onToggle={() => toggleGroup("monitor")} />
+        {(collapsed || monExpanded) && (
+          <div className="navGroupItems">
+            <div className={`navItem ${view === "token_stats" ? "navItemActive" : ""}`} onClick={() => onViewChange("token_stats")} role="button" tabIndex={0} title={t("sidebar.tokenStats")} style={disabledViews.includes("token_stats") ? { opacity: 0.4 } : undefined}>
+              <IconZap size={16} /> {!collapsed && <span>{t("sidebar.tokenStats")}</span>}
+            </div>
+            <div className={`navItem ${view === "skill_usage" ? "navItemActive" : ""}`} onClick={() => onViewChange("skill_usage")} role="button" tabIndex={0} title={t("sidebar.skillUsage")}>
+              <IconBarChart size={16} /> {!collapsed && <span>{t("sidebar.skillUsage")}</span>}
+            </div>
+            <div className={`navItem ${view === "security" ? "navItemActive" : ""}`} onClick={() => onViewChange("security")} role="button" tabIndex={0} title={t("sidebar.security")}>
+              <IconShield size={16} /> {!collapsed && <span>{t("sidebar.security")}</span>}
+            </div>
+            <div className={`navItem ${view === "pending_approvals" ? "navItemActive" : ""}`} onClick={() => onViewChange("pending_approvals")} role="button" tabIndex={0} title={t("sidebar.pendingApprovals")} style={{ position: "relative" }}>
+              <IconFingerprint size={16} /> {!collapsed && <span>{t("sidebar.pendingApprovals")}</span>}
+              {(pendingApprovalsCount ?? 0) > 0 && (
+                <span style={{
+                  position: "absolute", top: 4, left: collapsed ? 22 : undefined, right: collapsed ? undefined : 8,
+                  minWidth: 16, height: 16, borderRadius: 8,
+                  background: "#ef4444", color: "#fff", fontSize: 10, fontWeight: 600,
+                  display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px",
+                }}>{pendingApprovalsCount}</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Group: Multi-Agent ── */}
+        <NavGroupHeader collapsed={collapsed} icon={<IconBot size={GROUP_ICON_SIZE} />} label={t("sidebar.groupMultiAgent")} expanded={maExpanded} onToggle={() => toggleGroup("multiAgent")} />
+        {(collapsed || maExpanded) && (
+          <div className="navGroupItems">
+            <div className={`navItem ${view === "dashboard" ? "navItemActive" : ""}`} onClick={() => onViewChange("dashboard")} role="button" tabIndex={0} title={t("sidebar.dashboard")}>
+              <IconUsers size={16} /> {!collapsed && <span>{t("sidebar.dashboard")} {BETA_SUP}</span>}
+            </div>
+            <div className={`navItem ${view === "org_editor" ? "navItemActive" : ""}`} onClick={() => onViewChange("org_editor")} role="button" tabIndex={0} title={t("sidebar.orgEditor")}>
+              <IconLayoutGrid size={16} /> {!collapsed && <span>{t("sidebar.orgEditor")} {BETA_SUP}</span>}
+            </div>
+            <div className={`navItem ${view === "pixel_office" ? "navItemActive" : ""}`} onClick={() => onViewChange("pixel_office")} role="button" tabIndex={0} title={t("sidebar.pixelOffice")}>
+              <IconBuilding size={16} /> {!collapsed && <span>{t("sidebar.pixelOffice")} {BETA_SUP}</span>}
+            </div>
+            <div className={`navItem ${view === "agent_manager" ? "navItemActive" : ""}`} onClick={() => onViewChange("agent_manager")} role="button" tabIndex={0} title={t("sidebar.agentManager")}>
+              <IconBot size={16} /> {!collapsed && <span>{t("sidebar.agentManager")}</span>}
+            </div>
+          </div>
+        )}
+
+        {/* ── Group: Store ── */}
+        {storeVisible && (
+          <>
+            <NavGroupHeader collapsed={collapsed} icon={<IconStorefront size={GROUP_ICON_SIZE} />} label={t("sidebar.groupStore")} expanded={stExpanded} onToggle={() => toggleGroup("store")} />
+            {(collapsed || stExpanded) && (
+              <div className="navGroupItems">
+                <div className={`navItem ${view === "agent_store" ? "navItemActive" : ""}`} onClick={() => onViewChange("agent_store")} role="button" tabIndex={0} title={t("sidebar.agentStore")}>
+                  <IconStorefront size={16} /> {!collapsed && <span>{t("sidebar.agentStore")} {BETA_SUP}</span>}
+                </div>
+                <div className={`navItem ${view === "skill_store" ? "navItemActive" : ""}`} onClick={() => onViewChange("skill_store")} role="button" tabIndex={0} title={t("sidebar.skillStore")}>
+                  <IconPuzzle size={16} /> {!collapsed && <span>{t("sidebar.skillStore")} {BETA_SUP}</span>}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Collapsible Config section */}
+      <div className="configSection">
+        <div className="configHeader" onClick={onToggleConfig} role="button" tabIndex={0} title={t("sidebar.config")}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <IconConfig size={16} />
+            {!collapsed && <span>{t("sidebar.config")}</span>}
+          </div>
+          {!collapsed && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {configExpanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+            </div>
+          )}
+        </div>
+        {!collapsed && configExpanded && (
+          <div className="stepList">
+            {steps.map((s) => {
+              const isActive = view === "wizard" && s.id === stepId;
+              return (
+                <Fragment key={s.id}>
+                  <div
+                    className={`stepItem ${isActive ? "stepItemActive" : ""}`}
+                    onClick={() => { onViewChange("wizard"); onStepChange(s.id); }}
+                    role="button" tabIndex={0}
+                  >
+                    <StepDot stepId={s.id} />
+                    <div className="stepMeta"><div className="stepTitle">{s.title}</div></div>
+                  </div>
+                  {s.id === "agent" && (
+                    <div
+                      className={`stepItem ${view === "identity" ? "stepItemActive" : ""}`}
+                      onClick={() => onViewChange("identity")}
+                      role="button" tabIndex={0}
+                      title={t("sidebar.identity")}
+                    >
+                      <div className="stepDot"><IconFingerprint size={14} /></div>
+                      <div className="stepMeta"><div className="stepTitle">{t("sidebar.identity")}</div></div>
+                    </div>
+                  )}
+                </Fragment>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* [OpenAkita-RuoYi] 底部：账号信息（可退出） / 未启用时保留版本号 */}
+      {!collapsed && (
+        <div style={{
+          padding: "10px 12px",
+          borderTop: "1px solid var(--line)",
+          fontSize: 11,
+          opacity: showAccount ? 1 : 0.4,
+          lineHeight: 1.6,
+          flexShrink: 0,
+        }}>
+          {showAccount ? (
+            <div ref={accountMenuRef} style={{ position: "relative", marginBottom: 6 }}>
+              <button
+                type="button"
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                title={t("sidebar.accountMenu")}
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 10px",
+                  border: "1px solid var(--line)",
+                  borderRadius: 10,
+                  background: accountMenuOpen ? "var(--nav-hover, rgba(0,0,0,0.05))" : "transparent",
+                  cursor: "pointer",
+                  color: "var(--text, var(--fg))",
+                  textAlign: "left",
+                }}
+              >
+                <span style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--accent, #5B8DEF)",
+                  color: "#fff",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}>
+                  {account ? accountInitial : <IconUser size={14} />}
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{
+                    display: "block",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {displayName || t("sidebar.notLoggedIn")}
+                  </span>
+                  {account?.username && (
+                    <span style={{
+                      display: "block",
+                      fontSize: 11,
+                      opacity: 0.55,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}>
+                      @{account.username}
+                    </span>
+                  )}
+                </span>
+                <IconChevronRight size={14} style={{ opacity: 0.45, transform: accountMenuOpen ? "rotate(-90deg)" : undefined }} />
+              </button>
+              {accountMenuOpen && renderAccountMenu(false)}
+            </div>
+          ) : (
+            <div
+              onClick={() => setReleaseNotesOpen(true)}
+              title={t("version.releaseNotesButton")}
+              style={{ cursor: "pointer" }}
+            >
+              {isWeb ? "Web" : "Desktop"} v{desktopVersion}{import.meta.env.VITE_PREVIEW_BUILD === "true" && <span style={{ marginLeft: 6, color: "#e8a735", fontWeight: 600, opacity: 1 }}>预览版</span>}
+            </div>
+          )}
+          {!showAccount && backendVersion && <div>Backend v{backendVersion}</div>}
+          {!showAccount && !backendVersion && serviceRunning && <div>Backend: -</div>}
+          {/* [OpenAkita-RuoYi] 隐藏底部外链：官网 / 反馈 / 文档 / GitHub / Gitee
+          <div style={{ marginTop: showAccount ? 0 : 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", opacity: showAccount ? 0.55 : 1 }}>
+            <span
+              onClick={() => openExternalUrl("https://openakita.ai")}
+              style={{ color: "var(--accent, #5B8DEF)", textDecoration: "none", opacity: 1, display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}
+              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+            >
+              <IconGlobe size={11} />
+              openakita.ai
+            </span>
+            {serviceRunning && (
+              <span
+                onClick={() => onViewChange("my_feedback")}
+                title={t("sidebar.myFeedback")}
+                style={{ cursor: "pointer", opacity: 1, color: view === "my_feedback" ? "var(--fg)" : "var(--accent, #5B8DEF)", display: "inline-flex", alignItems: "center", gap: 2, position: "relative" }}
+                onMouseEnter={(e) => { const s = e.currentTarget.querySelector<HTMLElement>(".myFeedbackText"); if (s) s.style.textDecoration = "underline"; }}
+                onMouseLeave={(e) => { const s = e.currentTarget.querySelector<HTMLElement>(".myFeedbackText"); if (s) s.style.textDecoration = "none"; }}
+              >
+                <IconBug size={12} />
+                <span className="myFeedbackText" style={{ fontSize: 11 }}>{t("sidebar.myFeedback")}</span>
+                {(unreadFeedbackCount ?? 0) > 0 && (
+                  <span style={{
+                    position: "absolute", top: -4, right: -6,
+                    width: 7, height: 7, borderRadius: "50%",
+                    background: "#ef4444",
+                  }} />
+                )}
+              </span>
+            )}
+            <span
+              onClick={() => onViewChange("docs")}
+              style={{ color: "var(--accent, #5B8DEF)", textDecoration: "none", opacity: 1, display: "inline-flex", alignItems: "center", gap: 3, cursor: "pointer" }}
+              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = "underline")}
+              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = "none")}
+              title={t("sidebar.docs")}
+            >
+              <IconBook size={12} />
+              {t("sidebar.docs")}
+            </span>
+            <span
+              onClick={() => openExternalUrl("https://github.com/openakita/openakita")}
+              title="GitHub"
+              style={{ color: "var(--accent, #5B8DEF)", opacity: 1, display: "inline-flex", alignItems: "center", cursor: "pointer" }}
+            >
+              <IconGitHub size={13} />
+            </span>
+            <span
+              onClick={() => openExternalUrl("https://gitee.com/zacon365/openakita")}
+              title="Gitee"
+              style={{ color: "var(--accent, #5B8DEF)", opacity: 1, display: "inline-flex", alignItems: "center", cursor: "pointer" }}
+            >
+              <IconGitee size={13} />
+            </span>
+          </div>
+          */}
+        </div>
+      )}
+      {releaseNotesOpen && (
+        <ReleaseNotesDialog
+          version={releaseNotesVersion}
+          onClose={() => setReleaseNotesOpen(false)}
+        />
+      )}
+      {collapsed && (
+        <div style={{
+          padding: "8px 0",
+          borderTop: "1px solid var(--line)",
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 6,
+        }}>
+          {showAccount && (
+            <div ref={accountMenuRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setAccountMenuOpen((v) => !v)}
+                title={displayName || t("sidebar.accountMenu")}
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: "1px solid var(--line)",
+                  background: "var(--accent, #5B8DEF)",
+                  color: "#fff",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                {account ? accountInitial : <IconUser size={14} />}
+              </button>
+              {accountMenuOpen && renderAccountMenu(true)}
+            </div>
+          )}
+          {/* [OpenAkita-RuoYi] 侧栏收起时同样隐藏外链
+          <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+            <span
+              onClick={() => openExternalUrl("https://openakita.ai")}
+              title="openakita.ai"
+              style={{ color: "var(--accent, #5B8DEF)", opacity: 0.5, display: "flex", cursor: "pointer" }}
+            >
+              <IconGlobe size={14} />
+            </span>
+            {serviceRunning && (
+              <span
+                onClick={() => onViewChange("my_feedback")}
+                title={t("sidebar.myFeedback")}
+                style={{ color: view === "my_feedback" ? "var(--fg)" : "var(--accent, #5B8DEF)", opacity: view === "my_feedback" ? 1 : 0.5, display: "flex", cursor: "pointer", position: "relative" }}
+              >
+                <IconBug size={14} />
+                {(unreadFeedbackCount ?? 0) > 0 && (
+                  <span style={{
+                    position: "absolute", top: -2, right: -2,
+                    width: 6, height: 6, borderRadius: "50%",
+                    background: "#ef4444",
+                  }} />
+                )}
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+            <span
+              onClick={() => onViewChange("docs")}
+              title={t("sidebar.docs")}
+              style={{ color: "var(--accent, #5B8DEF)", opacity: 0.5, display: "flex", cursor: "pointer" }}
+            >
+              <IconBook size={14} />
+            </span>
+            <span
+              onClick={() => openExternalUrl("https://github.com/openakita/openakita")}
+              title="GitHub"
+              style={{ color: "var(--accent, #5B8DEF)", opacity: 0.5, display: "flex", cursor: "pointer" }}
+            >
+              <IconGitHub size={14} />
+            </span>
+            <span
+              onClick={() => openExternalUrl("https://gitee.com/zacon365/openakita")}
+              title="Gitee"
+              style={{ color: "var(--accent, #5B8DEF)", opacity: 0.5, display: "flex", cursor: "pointer" }}
+            >
+              <IconGitee size={14} />
+            </span>
+          </div>
+          */}
+        </div>
+      )}
+    </aside>
+  );
+}

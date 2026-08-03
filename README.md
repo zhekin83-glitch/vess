@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="docs/assets/logo.png" alt="器灵 Vess Logo" width="160" />
-</p>
 
 <h1 align="center">器灵 Vess</h1>
 
@@ -44,11 +41,11 @@
 
 它不是「又一个网页聊天框」，而是 **可配置、可扩展、可管控的本地 Agent 运行时**。
 
-| | |
+|||  
 |--|--|
 | **品牌** | 器灵 Vess |
 | **定位** | 桌面终端 · 能做事的 AI Agent |
-| **Slogan** | 别人的 AI 只会聊天，器灵帮你把事做完 |
+| **口号** |别人的AI只会聊天，器灵帮你把事做完|
 | **数据目录** | `~/.vess` |
 | **本地服务** | 默认端口 `18900` |
 | **技术底座** | 基于开源 [OpenAkita](https://github.com/openakita/openakita) 引擎 |
@@ -142,7 +139,7 @@
 |------|------|
 | **器灵 Vess** | 桌面 Agent 运行时（本仓库） |
 | **Monaco-Tauri** | 基于 Vess 的开发编辑器 |
-| **管理端** | 账号、模型、能力、配额、公告与更新 · [agent.lanmeiti.cn](http://agent.lanmeiti.cn) |
+| **管理端** | 账号、模型、能力、配额、公告与更新 · [agent.lanmeiti.cn]|
 
 ---
 

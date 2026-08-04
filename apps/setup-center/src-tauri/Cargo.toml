@@ -1,8 +1,8 @@
 [package]
 name = "openakita-setup-center"
 version = "1.27.32"
-description = "OpenAkita Setup Center"
-authors = ["OpenAkita"]
+description = "器灵 Vess Desktop"
+authors = ["Vess contributors"]
 license = "AGPL-3.0-only"
 edition = "2021"
 

@@ -1,15 +1,22 @@
-OpenAkita
-Copyright 2026 OpenAkita Team
+器灵 Vess (Vess)
+Copyright 2026 Vess contributors
 
-Licensed under the GNU Affero General Public License v3.0 only.
+This product is based on OpenAkita and is licensed under the
+GNU Affero General Public License v3.0 only (AGPL-3.0-only).
 
 This product includes software developed by the OpenAkita Team
 (https://github.com/openakita/openakita).
+
+Corresponding source for this distribution:
+https://github.com/zhekin83-glitch/vess
 
 The OpenAkita name, logos, icons, screenshots, and other brand assets
 are trademarks or brand assets of the OpenAkita project and are not
 licensed under the GNU Affero General Public License v3.0. See
 TRADEMARK.md for the project trademark policy.
+
+This distribution is branded as 「器灵 Vess」 and is not the official
+OpenAkita project.
 
 Third-party components and their licenses are listed in
 THIRD_PARTY_NOTICES.md.

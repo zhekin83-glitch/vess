@@ -1380,6 +1380,8 @@ class TestAgentToolHandler:
         agent._is_sub_agent_call = False
         agent._current_session = _make_session()
         agent._current_session.context.agent_profile_id = "default"
+        agent.agent_state = MagicMock()
+        agent.agent_state.current_session = agent._current_session
         return agent
 
     @pytest.fixture
@@ -1423,6 +1425,7 @@ class TestAgentToolHandler:
     @pytest.mark.asyncio
     async def test_delegate_no_session(self, handler):
         handler.agent._current_session = None
+        handler.agent.agent_state.current_session = None
         with patch.object(handler, "_get_orchestrator", return_value=MagicMock()):
             result = await handler.handle(
                 "delegate_to_agent",
@@ -1432,6 +1435,30 @@ class TestAgentToolHandler:
                 },
             )
             assert "No active session" in result
+
+    @pytest.mark.asyncio
+    async def test_delegate_uses_agent_state_session_fallback(self, handler):
+        """Desktop stream bug: task-local _current_session unset, agent_state has it."""
+        session = _make_session()
+        session.context.agent_profile_id = "default"
+        handler.agent._current_session = None
+        handler.agent.agent_state.current_session = session
+
+        orch = MagicMock()
+        orch.delegate = AsyncMock(return_value="ok from helper")
+        with patch.object(handler, "_get_orchestrator", return_value=orch):
+            result = await handler.handle(
+                "delegate_to_agent",
+                {
+                    "agent_id": "helper",
+                    "message": "do task",
+                },
+            )
+        assert "No active session" not in result
+        orch.delegate.assert_awaited_once()
+        assert orch.delegate.await_args.kwargs["session"] is session
+        # Fallback should re-bind onto the agent for subsequent tools
+        assert handler.agent._current_session is session
 
     @pytest.mark.asyncio
     async def test_delegate_parallel_too_few_tasks(self, handler):

@@ -2930,6 +2930,12 @@ export function OrgEditorView({
               display: flex; flex-direction: column; align-items: stretch; gap: 10px;
               animation: org-fab-in 0.4s cubic-bezier(0.34,1.56,0.64,1);
             }
+            /* Keep FABs under modal overlays so they never steal clicks from dialogs */
+            body:has([data-slot="dialog-overlay"]) .org-fab-group,
+            body:has([data-slot="alert-dialog-overlay"]) .org-fab-group {
+              visibility: hidden;
+              pointer-events: none;
+            }
             .org-chat-fab {
               display: flex; align-items: center; justify-content: center; gap: 8px;
               padding: 12px 20px; border: none; border-radius: 16px;

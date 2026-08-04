@@ -812,6 +812,24 @@ def post_process_streamed_decision(decision) -> None:
             decision.text_content = "\n".join(lines[:-1]).strip()
             logger.warning(f"[post_process] Stripped bare tool name '{last}'")
 
+    # ── 5b) Stream-path parity with OpenAI non-stream parse ──
+    # Some proxies (and some VL / reasoning models) stream the entire answer
+    # as reasoning_content / thinking deltas and leave content empty. Desktop
+    # chat is streaming-only, so without this promotion the UI shows a full
+    # "思考" block then fails with "未产生可用输出".
+    if (
+        not (decision.text_content or "").strip()
+        and not decision.tool_calls
+        and (decision.thinking_content or "").strip()
+    ):
+        promoted = decision.thinking_content.strip()
+        decision.text_content = promoted
+        decision.thinking_content = ""
+        logger.warning(
+            "[post_process] content empty; promoted thinking (%d chars) to visible text",
+            len(promoted),
+        )
+
     # ── 6) 更新 decision type ──
     from ._reasoning_runtime import DecisionType
 

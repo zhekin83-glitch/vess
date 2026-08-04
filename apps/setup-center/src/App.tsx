@@ -3383,6 +3383,7 @@ function MainApp() {
           onOpenRuntimeEnvironment={() => setRuntimeDialogOpen(true)}
           onRepairRuntime={repairRuntimeAndRestart}
           setView={navigateToView}
+          desktopVersion={desktopVersion}
         />
       </div>
     );

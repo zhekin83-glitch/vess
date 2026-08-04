@@ -6531,7 +6531,23 @@ class ReasoningEngine:
         if consistency_warning:
             return cleaned_text + consistency_warning
 
-        return cleaned_text or (
+        if cleaned_text:
+            return cleaned_text
+
+        # Vision / thinking models sometimes put the entire answer into
+        # reasoning_content and leave content empty. Promote thinking to the
+        # user-visible reply (same fallback as the tools-executed path above)
+        # instead of hard-failing with "未产生可用输出".
+        thinking_text = (decision.thinking_content or "").strip()
+        if len(thinking_text) > 20:
+            logger.warning(
+                "[EmptyContent] LLM returned empty visible text but has thinking "
+                "content (%d chars); promoting thinking as the reply",
+                len(thinking_text),
+            )
+            return thinking_text
+
+        return (
             "⚠️ 大模型返回异常：未产生可用输出。任务已中断。请重试、或更换端点/模型后再执行。"
         )
 

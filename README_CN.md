@@ -216,6 +216,8 @@ vess/
 
 AGPL-3.0-only。详见 [LICENSE](LICENSE)、[NOTICE](NOTICE)。
 
+安装包与客户端「关于 / 开源说明」中包含：基于 OpenAkita、源码仓库地址与版本、非官方声明。首次配置的风险须知亦含开源协议条款。
+
 ---
 
 <p align="center">

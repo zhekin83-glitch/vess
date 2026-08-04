@@ -98,7 +98,7 @@ class AgentToolHandler:
         if orchestrator is None:
             return "❌ Orchestrator not available — multi-agent mode may not be fully initialised"
 
-        session = getattr(self.agent, "_current_session", None)
+        session = self._require_session()
         if session is None:
             return "❌ No active session — delegation requires a session context"
 
@@ -176,7 +176,7 @@ class AgentToolHandler:
         if orchestrator is None:
             return "❌ Orchestrator not available"
 
-        session = getattr(self.agent, "_current_session", None)
+        session = self._require_session()
         if session is None:
             return "❌ No active session"
 
@@ -384,7 +384,7 @@ class AgentToolHandler:
         if orchestrator is None:
             return "❌ Orchestrator not available"
 
-        session = getattr(self.agent, "_current_session", None)
+        session = self._require_session()
         if session is None:
             return "❌ No active session"
 
@@ -471,7 +471,7 @@ class AgentToolHandler:
         if not description:
             return "❌ description is required"
 
-        session = getattr(self.agent, "_current_session", None)
+        session = self._require_session()
         if session is None:
             return "❌ No active session — agent creation requires a session context"
 
@@ -588,12 +588,36 @@ class AgentToolHandler:
                 logger.warning(
                     "[AgentToolHandler] Orchestrator was None — lazily created as fallback"
                 )
-            else:
-                logger.warning("[AgentToolHandler] _orchestrator is None (multi_agent disabled)")
             return orch
         except (ImportError, AttributeError) as e:
             logger.warning(f"[AgentToolHandler] Cannot access _orchestrator: {e}")
             return None
+
+    def _require_session(self):
+        """Return the active Session, or None if task-local binding is missing.
+
+        Prefer ``Agent._current_session`` (task-local).  Fall back to
+        ``agent_state.current_session`` which is set in the same prepare step
+        but is not task-keyed — covers the desktop stream path where prepare
+        historically ran in a child task and left ``_current_session`` unset
+        on the parent.
+        """
+        session = getattr(self.agent, "_current_session", None)
+        if session is not None:
+            return session
+        agent_state = getattr(self.agent, "agent_state", None)
+        fallback = getattr(agent_state, "current_session", None) if agent_state else None
+        if fallback is not None:
+            logger.warning(
+                "[AgentToolHandler] _current_session missing on this task — "
+                "using agent_state.current_session fallback"
+            )
+            # Re-bind onto this task so subsequent tools see a consistent value
+            try:
+                self.agent._current_session = fallback
+            except Exception:
+                pass
+        return fallback
 
     def _get_profile_store(self):
         """Get the shared ProfileStore (same instance as orchestrator's).

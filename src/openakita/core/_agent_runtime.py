@@ -589,6 +589,27 @@ class Agent:
         task = asyncio.current_task()
         return id(task) if task else 0
 
+    @staticmethod
+    def _anchor_task_local_context() -> None:
+        """Pin task-local storage to this task before spawning child tasks.
+
+        ``_current_session`` is keyed by asyncio task id.  Child tasks created
+        via ``asyncio.create_task`` copy ContextVars, but mutations inside the
+        child do **not** propagate back to the parent.  If a child (e.g. the
+        desktop stream ``_prepare_task``) is the first to assign
+        ``_current_session``, the value is stored under the child's key and
+        the parent — where tools like ``delegate_to_agent`` later run — sees
+        ``None`` ("No active session").
+
+        Call this in the parent task before any ``create_task`` that may
+        assign task-local session fields.
+        """
+        if Agent._inherited_task_key.get(0):
+            return
+        task = asyncio.current_task()
+        if task is not None:
+            Agent._inherited_task_key.set(id(task))
+
     @property
     def _current_session(self):
         return self.__dict__.get("_tls_session", {}).get(self._task_key())
@@ -6201,6 +6222,12 @@ class Agent:
             yield {"type": "done"}
             return
 
+        # Anchor task-local keys to this (parent) task BEFORE any create_task.
+        # Desktop stream runs _prepare_session_context in a child task for
+        # heartbeat/progress yielding; without anchoring, _current_session is
+        # stored under the child's task id and delegation tools later see None.
+        self._anchor_task_local_context()
+
         # 解析 conversation_id（提前，以便清理时使用正确的 key）
         self._current_session_id = session_id
         conversation_id = self._resolve_conversation_id(session, session_id)
@@ -6322,6 +6349,11 @@ class Agent:
                     conversation_id,
                     im_tokens,
                 ) = await _prepare_task
+                # Defensive rebind: ensure parent task sees the Session even if
+                # prepare wrote under a child task key (pre-anchor race / older
+                # call sites). Required for delegate_to_agent / mode tools.
+                if session is not None:
+                    self._current_session = session
             except UserCancelledError:
                 logger.info(
                     f"[Session:{session_id}] Cancelled during prepare compression, "

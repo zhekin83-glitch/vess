@@ -511,3 +511,24 @@ def test_trace_scrubber_does_not_swallow_real_inline_tool_call_outside_trace():
         assert "web_search" in tool_names
     finally:
         tools_mod._KNOWN_TOOL_NAMES.discard("web_search")
+
+
+def test_post_process_promotes_thinking_when_visible_text_empty():
+    """VL/proxy streams sometimes put the whole answer in thinking only."""
+    from openakita.agent.reasoning import Decision, DecisionType
+
+    decision = Decision(
+        type=DecisionType.FINAL_ANSWER,
+        text_content="",
+        tool_calls=[],
+        thinking_content="这是一张器灵 Vess 安装向导的许可证协议截图。",
+        raw_response=None,
+        stop_reason="end_turn",
+        assistant_content=[],
+    )
+
+    post_process_streamed_decision(decision)
+
+    assert decision.text_content.startswith("这是一张器灵 Vess")
+    assert decision.thinking_content == ""
+    assert decision.type == DecisionType.FINAL_ANSWER

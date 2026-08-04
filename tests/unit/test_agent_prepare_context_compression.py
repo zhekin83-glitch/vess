@@ -301,6 +301,81 @@ async def test_trait_mining_background_does_not_block_and_persists(monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_task_local_session_visible_across_prepare_child_when_anchored() -> None:
+    """Child prepare task must write _current_session under the parent's key."""
+    agent = _make_agent()
+    session = SimpleNamespace(id="s1")
+
+    async def child_sets_session():
+        agent._current_session = session
+
+    # Without anchor: child stores under its own task id → parent sees None
+    Agent._inherited_task_key.set(0)
+    await asyncio.create_task(child_sets_session())
+    assert agent._current_session is None
+
+    # With anchor: child inherits parent key → parent sees session
+    Agent._inherited_task_key.set(0)
+    agent._anchor_task_local_context()
+    await asyncio.create_task(child_sets_session())
+    assert agent._current_session is session
+
+
+@pytest.mark.asyncio
+async def test_chat_with_session_stream_rebinds_session_after_prepare_task() -> None:
+    """Desktop stream runs prepare in a child task; parent must still see session.
+
+    Regression: without anchoring/rebind, ``_current_session`` is stored under
+    the prepare task's id and ``delegate_to_agent`` fails with
+    ``No active session`` even though orchestrator is healthy.
+    """
+    agent = _make_chat_agent()
+    session = SimpleNamespace(id="sess-desktop", channel="desktop")
+    seen_in_parent: list = []
+
+    async def _prepare_session_context(**kwargs):
+        # Mimic real prepare: assign task-local session inside the child task.
+        agent._current_session = kwargs["session"]
+        agent.agent_state.current_session = kwargs["session"]
+        await asyncio.sleep(0)
+        return [], "cli", None, "session-1", None
+
+    async def _preempt_or_queue_prev_task(**_kwargs):
+        return "continue"
+
+    agent._prepare_session_context = _prepare_session_context
+    agent._preempt_or_queue_prev_task = _preempt_or_queue_prev_task
+    agent._is_session_cancelled = lambda _sid: False
+    agent._apply_endpoint_override_for_turn = lambda **_kwargs: None
+    agent._finish_agent_run_lifecycle_once = lambda **_kwargs: asyncio.sleep(0)
+
+    def _build_slow_compiler_hint(_sid):
+        # First parent-side call after prepare+rebind.
+        seen_in_parent.append(agent._current_session)
+        raise RuntimeError("stop-after-session-check")
+
+    agent._build_slow_compiler_hint = _build_slow_compiler_hint
+
+    events = [
+        event
+        async for event in agent.chat_with_session_stream(
+            message="生成 PPT",
+            session_messages=[],
+            session_id="session-1",
+            session=session,
+        )
+    ]
+
+    assert any(e.get("type") == "preparation_stage" for e in events if isinstance(e, dict))
+    assert any(
+        e.get("type") == "error" and "stop-after-session-check" in e.get("message", "")
+        for e in events
+        if isinstance(e, dict)
+    )
+    assert seen_in_parent == [session]
+
+
+@pytest.mark.asyncio
 async def test_finalize_schedules_trait_mining_after_lifecycle_completion() -> None:
     agent = Agent.__new__(Agent)
     agent.reasoning_engine = SimpleNamespace(_last_react_trace=[], _last_exit_reason="ask_user")

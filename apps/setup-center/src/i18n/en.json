@@ -1845,6 +1845,20 @@
     "releaseNotesLoadFailed": "Failed to load release notes: {{error}}",
     "releaseNotesEmpty": "No release notes available."
   },
+  "aboutLegal": {
+    "title": "About Vess",
+    "subtitle": "Desktop v{{version}}",
+    "line1": "Vess is based on OpenAkita and licensed under AGPL-3.0-only.",
+    "line2Prefix": "Source:",
+    "line2Suffix": " (version: {{version}}).",
+    "line3": "OpenAkita is an upstream trademark; this product is not the official OpenAkita.",
+    "thirdParty": "See THIRD_PARTY_NOTICES.md in the source tree. Preserve LICENSE and NOTICE.",
+    "openSource": "Open source repo",
+    "openUpstream": "Upstream OpenAkita",
+    "menuLabel": "About / License",
+    "statusFooterBefore": "Based on OpenAkita, under",
+    "statusFooterAfter": "notice"
+  },
   "onboarding": {
     "defaultWorkspace": "Default Workspace",
     "welcome": {
@@ -1947,7 +1961,7 @@
     "agreement": {
       "title": "Risk Acknowledgment",
       "subtitle": "Please read the following carefully before proceeding",
-      "content": "Vess is an AI Agent software powered by Large Language Models (LLMs). Before using it, you need to understand and accept the following:\n\n1. Behavior Is Not Fully Predictable\nThe AI Agent's behavior is driven by underlying LLMs, which produce probabilistic and non-deterministic outputs. Even with identical inputs, the Agent may produce different results, including but not limited to: unexpected file operations, unintended messages, and unintended tool invocations.\n\n2. Supervision Is Required\nYou are responsible for supervising the AI Agent's actions at all times. For tool calls that require approval (such as file deletion, system command execution, message sending, etc.), review the operation details carefully before approving. It is strongly recommended NOT to enable auto-confirm mode without active supervision.\n\n3. Potential Risks\nThe AI Agent may cause: data loss or corruption (e.g., accidental file deletion, overwriting important data), sending inappropriate messages (e.g., incorrect content through IM channels), executing dangerous system commands, generating unexpected API calls and costs, and other unforeseen side effects.\n\n4. Disclaimer of Liability\nVess is an open-source software project provided \"AS IS\" without warranty of any kind, express or implied. The project maintainers and contributors shall not be liable for any direct, indirect, incidental, special, or consequential damages arising from the use of this software. You assume all risks associated with using this software.\n\n5. Data Security\nYour conversation content, configuration data, and tool call records may be sent to third-party LLM service providers. Do not share sensitive personal information, passwords, keys, or other confidential data in conversations unless you fully understand and accept the associated risks.",
+      "content": "Vess is an AI Agent software powered by Large Language Models (LLMs). Before using it, you need to understand and accept the following:\n\n1. Behavior Is Not Fully Predictable\nThe AI Agent's behavior is driven by underlying LLMs, which produce probabilistic and non-deterministic outputs. Even with identical inputs, the Agent may produce different results, including but not limited to: unexpected file operations, unintended messages, and unintended tool invocations.\n\n2. Supervision Is Required\nYou are responsible for supervising the AI Agent's actions at all times. For tool calls that require approval (such as file deletion, system command execution, message sending, etc.), review the operation details carefully before approving. It is strongly recommended NOT to enable auto-confirm mode without active supervision.\n\n3. Potential Risks\nThe AI Agent may cause: data loss or corruption (e.g., accidental file deletion, overwriting important data), sending inappropriate messages (e.g., incorrect content through IM channels), executing dangerous system commands, generating unexpected API calls and costs, and other unforeseen side effects.\n\n4. Disclaimer of Liability\nVess is an open-source software project provided \"AS IS\" without warranty of any kind, express or implied. The project maintainers and contributors shall not be liable for any direct, indirect, incidental, special, or consequential damages arising from the use of this software. You assume all risks associated with using this software.\n\n5. Data Security\nYour conversation content, configuration data, and tool call records may be sent to third-party LLM service providers. Do not share sensitive personal information, passwords, keys, or other confidential data in conversations unless you fully understand and accept the associated risks.\n\n6. Open Source License & Attribution\nVess is based on OpenAkita and licensed under AGPL-3.0-only. Source: https://github.com/zhekin83-glitch/vess (see About for version). OpenAkita is an upstream trademark; this product is not the official OpenAkita. By installing, you acknowledge corresponding source availability and agree to preserve LICENSE / NOTICE requirements.",
       "confirmLabel": "I have read and understood the above",
       "confirmPlaceholder": "Type: I ACKNOWLEDGE",
       "confirmText": "I ACKNOWLEDGE",

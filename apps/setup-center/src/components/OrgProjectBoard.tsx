@@ -175,6 +175,8 @@ export function OrgProjectBoard({ orgId, apiBaseUrl, nodes = [], compact = false
   const [viewTab, setViewTab] = useState<"gantt" | "kanban">("gantt");
   const [projectPendingDelete, setProjectPendingDelete] = useState<Project | null>(null);
   const [taskPendingDelete, setTaskPendingDelete] = useState<PendingTaskDelete | null>(null);
+  const [projectSubmitError, setProjectSubmitError] = useState("");
+  const [projectSubmitting, setProjectSubmitting] = useState(false);
   const [projectStripWidth, setProjectStripWidth] = useState<number | null>(null);
   const [projectScrollbarSize, setProjectScrollbarSize] = useState(0);
   const projectRailRef = useRef<HTMLDivElement | null>(null);
@@ -316,26 +318,42 @@ export function OrgProjectBoard({ orgId, apiBaseUrl, nodes = [], compact = false
   };
 
   const submitProject = async () => {
-    if (!newProjectName.trim()) return;
+    if (!newProjectName.trim() || projectSubmitting) return;
+    setProjectSubmitError("");
+    setProjectSubmitting(true);
     try {
+      // ProjectCreate forbids unknown fields (extra=forbid). Never send `status`
+      // on create — that field only exists on ProjectPatch / update.
+      const body = editingProject
+        ? {
+            name: newProjectName.trim(),
+            description: newProjectDesc,
+            project_type: newProjectType,
+            status: editingProject.status ?? "active",
+          }
+        : {
+            name: newProjectName.trim(),
+            description: newProjectDesc,
+            project_type: newProjectType,
+          };
       await safeFetch(
         editingProject
           ? `${apiBaseUrl}/api/v2/orgs/${orgId}/projects/${editingProject.id}`
           : `${apiBaseUrl}/api/v2/orgs/${orgId}/projects`,
         {
-        method: editingProject ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newProjectName,
-          description: newProjectDesc,
-          project_type: newProjectType,
-          status: editingProject?.status ?? "active",
-        }),
-      });
+          method: editingProject ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
       resetProjectForm();
       setShowNewProject(false);
       fetchProjects();
-    } catch { /* ignore */ }
+    } catch (err) {
+      setProjectSubmitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setProjectSubmitting(false);
+    }
   };
 
   const createTask = async () => {
@@ -949,7 +967,11 @@ export function OrgProjectBoard({ orgId, apiBaseUrl, nodes = [], compact = false
       {/* ── New Project Modal ── */}
       <Dialog open={showNewProject} onOpenChange={(open) => {
         setShowNewProject(open);
-        if (!open) resetProjectForm();
+        if (!open) {
+          resetProjectForm();
+          setProjectSubmitError("");
+          setProjectSubmitting(false);
+        }
       }}>
         <DialogContent className="sm:max-w-md" onOpenAutoFocus={e => e.preventDefault()}>
           <DialogHeader>
@@ -963,7 +985,7 @@ export function OrgProjectBoard({ orgId, apiBaseUrl, nodes = [], compact = false
               <div className="col-span-2 grid gap-2">
                 <Label htmlFor="project-name">{t("org.projectBoard.projectName")}</Label>
                 <Input id="project-name" placeholder={t("org.projectBoard.projectNamePlaceholder")} value={newProjectName}
-                  onChange={e => setNewProjectName(e.target.value)}
+                  onChange={e => { setNewProjectName(e.target.value); setProjectSubmitError(""); }}
                   onKeyDown={e => e.key === "Enter" && submitProject()} />
               </div>
               <div className="grid gap-2">
@@ -986,13 +1008,26 @@ export function OrgProjectBoard({ orgId, apiBaseUrl, nodes = [], compact = false
                 value={newProjectDesc} onChange={e => setNewProjectDesc(e.target.value)}
                 className="min-h-[80px] resize-y" />
             </div>
+            {projectSubmitError ? (
+              <p className="text-sm text-destructive whitespace-pre-wrap">{projectSubmitError}</p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setShowNewProject(false);
               resetProjectForm();
+              setProjectSubmitError("");
             }}>{t("org.projectBoard.cancel")}</Button>
-            <Button onClick={submitProject}>{editingProject ? t("org.projectBoard.save") : t("org.projectBoard.create")}</Button>
+            <Button
+              onClick={submitProject}
+              disabled={!newProjectName.trim() || projectSubmitting}
+            >
+              {projectSubmitting
+                ? t("org.projectBoard.creating", "创建中…")
+                : editingProject
+                  ? t("org.projectBoard.save")
+                  : t("org.projectBoard.create")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

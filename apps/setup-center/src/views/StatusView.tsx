@@ -29,6 +29,7 @@ import { TroubleshootPanel } from "../components/TroubleshootPanel";
 import { LinkDiagnosticsPanel, type LinkDiagnostic } from "../components/LinkDiagnosticsPanel";
 import { SkillConflictsPanel } from "../components/SkillConflictsPanel";
 import { ProviderIcon } from "../components/ProviderIcon";
+import { AboutLegalDialog } from "../components/AboutLegalDialog";
 import type { EnvMap, ViewId, WorkspaceSummary } from "../types";
 import type { UpdateInfo } from "../platform";
 
@@ -93,6 +94,7 @@ export interface StatusViewProps {
   onOpenRuntimeEnvironment: () => void;
   onRepairRuntime: () => Promise<void>;
   setView: (view: ViewId) => void;
+  desktopVersion?: string;
 }
 
 export function StatusView(props: StatusViewProps) {
@@ -111,6 +113,7 @@ export function StatusView(props: StatusViewProps) {
     doStopService, restartService,
     onOpenRuntimeEnvironment, onRepairRuntime,
     setView,
+    desktopVersion = "",
   } = props;
 
   const [healthChecking, setHealthChecking] = useState<string | null>(null);
@@ -141,6 +144,7 @@ export function StatusView(props: StatusViewProps) {
     repair_available?: boolean;
   } | null>(null);
   const [repairOpen, setRepairOpen] = useState(false);
+  const [aboutLegalOpen, setAboutLegalOpen] = useState(false);
 
   const effectiveWsId = currentWorkspaceId || workspaces[0]?.id || null;
   const ws = workspaces.find((w) => w.id === effectiveWsId) || workspaces[0] || null;
@@ -929,6 +933,31 @@ export function StatusView(props: StatusViewProps) {
           </div>
           </CardContent>
         </Card>
+      )}
+
+      <div className="pt-2 pb-1 flex flex-wrap items-center justify-center gap-x-0.5 gap-y-1 text-[11px] font-normal text-muted-foreground/65">
+        <span>{t("aboutLegal.statusFooterBefore")}</span>
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={() => setAboutLegalOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setAboutLegalOpen(true);
+            }
+          }}
+          className="cursor-pointer underline-offset-2 hover:underline"
+        >
+          AGPL-3.0-only
+        </span>
+        <span>{t("aboutLegal.statusFooterAfter")}</span>
+      </div>
+      {aboutLegalOpen && (
+        <AboutLegalDialog
+          version={desktopVersion}
+          onClose={() => setAboutLegalOpen(false)}
+        />
       )}
     </div>
   );

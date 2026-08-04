@@ -1,0 +1,29 @@
+器灵 Vess — 开源许可与致谢说明
+================================
+
+本软件「器灵 Vess」基于 OpenAkita，遵循 GNU Affero General Public License v3.0 only（AGPL-3.0-only）。
+
+源码仓库：
+  https://github.com/zhekin83-glitch/vess
+（安装包版本应与仓库对应 tag / commit 一致，详见应用内「关于」页。）
+
+OpenAkita 为上游开源项目及其商标；本产品使用独立品牌「器灵 Vess」，并非官方 OpenAkita。
+上游项目：https://github.com/openakita/openakita
+
+安装即表示您已知晓：
+  1. 可获取与本安装包对应的完整源码（见上述仓库或书面提供的等价方式）；
+  2. 修改版若通过网络向用户提供服务，须按 AGPL-3.0 向用户提供对应源码；
+  3. 请保留 LICENSE、NOTICE 及第三方许可说明，不得删除或遮挡版权信息；
+  4. 第三方组件许可见 THIRD_PARTY_NOTICES.md。
+
+完整协议文本见软件源码中的 LICENSE 文件。
+
+--------------------------------
+English Summary
+--------------------------------
+
+Vess is based on OpenAkita and licensed under AGPL-3.0-only.
+Source: https://github.com/zhekin83-glitch/vess
+OpenAkita is the upstream project/trademark; this product is not the official OpenAkita.
+Upstream: https://github.com/openakita/openakita
+Full license text: see LICENSE in the source tree.

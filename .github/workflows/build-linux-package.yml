@@ -1,0 +1,168 @@
+name: Build Linux Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundles:
+        description: "Tauri bundles to build"
+        required: false
+        default: "deb,appimage"
+        type: choice
+        options:
+          - "deb"
+          - "deb,appimage"
+
+permissions:
+  contents: read
+
+jobs:
+  linux_amd64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/setup-center/package-lock.json
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/setup-center/src-tauri
+          prefix-key: build-linux-pkg-v1
+          cache-bin: false
+
+      - name: Install Python build tooling
+        run: pip install build
+
+      - name: Install frontend dependencies
+        working-directory: apps/setup-center
+        run: npm ci
+
+      - name: Build web and desktop frontend assets
+        working-directory: apps/setup-center
+        run: |
+          npm run build:web
+          npm run build
+
+      - name: Create gitignored placeholders
+        run: |
+          mkdir -p identity/personas
+          if [ ! -f identity/personas/user_custom.md ]; then
+            echo "# User Custom Persona (placeholder)" > identity/personas/user_custom.md
+          fi
+
+      - name: Build Rust and docs in parallel
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            echo "[rust] Starting release build"
+            cd apps/setup-center/src-tauri
+            cargo build --release --features tauri/custom-protocol
+            echo "[rust] Completed"
+          ) &
+          rust_pid=$!
+          (
+            echo "[docs] Starting dependency install and build"
+            cd docs-site
+            npm ci
+            npm run build
+            echo "[docs] Completed"
+          ) &
+          docs_pid=$!
+          failed=0
+          wait "$rust_pid" || failed=1
+          wait "$docs_pid" || failed=1
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Prepare Cargo binary for Tauri bundler
+        run: python scripts/prepare_tauri_binary.py
+
+      - name: Prepare bootstrap resources (wheel + uv + standalone Python seed)
+        run: |
+          python build/prepare_bootstrap_resources.py \
+            --commit-resources \
+            --clean-output \
+            --require-real-assets \
+            --target-platform linux-x64
+
+      - name: Verify bootstrap manifest resources
+        run: python build/prepare_bootstrap_resources.py --commit-resources --verify-only
+
+      - name: Assert seed Python executable bit
+        run: |
+          set -euo pipefail
+          SEED_DIR="apps/setup-center/src-tauri/resources/bootstrap/python"
+          [ -d "$SEED_DIR" ] || { echo "ERROR: seed dir missing: $SEED_DIR"; exit 1; }
+          fail=0
+          for f in "$SEED_DIR"/bin/*; do
+            [ -e "$f" ] || continue
+            if [ ! -x "$f" ]; then
+              echo "ERROR: missing exec bit: $f" >&2
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ]
+
+      - name: Build Tauri bundles
+        working-directory: apps/setup-center
+        env:
+          NO_STRIP: true
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: >
+          npx tauri bundle
+          --bundles "${{ inputs.bundles }}"
+          --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Collect artifacts
+        id: collect
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT=dist-linux
+          mkdir -p "$OUT"
+          found=0
+          while IFS= read -r -d '' f; do
+            cp -f "$f" "$OUT/"
+            found=$((found+1))
+            echo "collected: $f"
+          done < <(find apps/setup-center/src-tauri/target/release/bundle -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.appimage' \) -print0)
+          ls -lah "$OUT" || true
+          if [ "$found" -eq 0 ]; then
+            echo "ERROR: no linux packages found" >&2
+            find apps/setup-center/src-tauri/target/release/bundle -maxdepth 5 -type f -print || true
+            exit 1
+          fi
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: vess-linux-amd64-ubuntu24
+          path: dist-linux/*
+          if-no-files-found: error
+          retention-days: 14

@@ -5,33 +5,8 @@
   <strong>桌面端 AI Agent 运行时 — 别人的 AI 只会聊天，器灵帮你把事做完</strong>
 </p>
 
-<p align="center">
-  <a href="https://github.com/zhekin83-glitch/vess"><img src="https://img.shields.io/badge/GitHub-zhekin83--glitch%2Fvess-181717?style=for-the-badge&logo=github" alt="GitHub" height="28" /></a>
-  &nbsp;
-  <a href="http://agent.lanmeiti.cn"><img src="https://img.shields.io/badge/管理端-agent.lanmeiti.cn-3DDC97?style=for-the-badge" alt="Admin" height="28" /></a>
-  &nbsp;
-  <a href="README.md"><img src="https://img.shields.io/badge/English-README-gray?style=for-the-badge" alt="English" height="28" /></a>
-</p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg?style=flat-square" alt="License" />
-  <img src="https://img.shields.io/badge/python-3.11+-blue.svg?style=flat-square" alt="Python" />
-  <img src="https://img.shields.io/badge/desktop-Tauri-orange.svg?style=flat-square" alt="Tauri" />
-  <img src="https://img.shields.io/badge/version-1.27.32-green.svg?style=flat-square" alt="Version" />
-</p>
 
-<p align="center">
-  本地运行 · 会做事 · 可扩展 · 企业可管控 · 多 IM · 技能 / MCP / 插件
-</p>
-
-<p align="center">
-  <a href="#什么是器灵-vess">产品简介</a> ·
-  <a href="#六大能力">六大能力</a> ·
-  <a href="#企业能做什么">企业场景</a> ·
-  <a href="#monaco-tauri">Monaco-Tauri</a> ·
-  <a href="#快速开始">快速开始</a> ·
-  <a href="#仓库与上游">仓库</a>
-</p>
 
 ---
 
@@ -65,7 +40,7 @@
 
 - 流式对话、思考链、附件与图片交互
 - 模型能力可配置：文本 / 思考 / 图片 / 视频 / 工具 等
-- **管理端默认同步模型与能力**，同时支持用户 **自建第三方端点**
+</p管理端默认同步模型与能力**，同时支持用户 **自建第三方端点**
 - Token / 技能用量可视，便于成本观察
 
 ### 3. 会做事的工具栈

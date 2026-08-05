@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="docs/assets/logo.png" alt="器灵 Vess Logo" width="160" />
-</p>
+
 
 <h1 align="center">器灵 Vess</h1>
 

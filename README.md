@@ -172,9 +172,7 @@ Fragment memory + MDRM relational graph (causal chains · timelines · entity gr
 
 **Fully GUI-based, no command line** — this is what sets OpenAkita apart from other open-source AI assistants:
 
-<p align="center">
-  <img src="docs/assets/en/desktop_quick_config.gif" alt="OpenAkita Quick Setup" width="800" />
-</p>
+
 
 | Step | What You Do | Time |
 |:----:|-------------|:----:|
@@ -256,20 +254,6 @@ Cross-platform desktop app built with **Tauri 2.x + React + TypeScript**:
 
 Dark/light theme · Onboarding wizard · Auto-update · Bilingual (EN/CN) · Start on boot
 
-### Mobile App
-
-<p align="center">
-  <a href="https://b23.tv/pWki3Vw">
-    <img src="docs/assets/en/mobile_app_demo_cover.png" alt="▶ Watch Mobile App Demo" width="720" />
-  </a>
-  <br/>
-  <sub>▶ Click to watch the Mobile App demo on Bilibili</sub>
-</p>
-
-- Connect your phone to the desktop backend over local network
-- Full-featured: chat, multi-Agent collaboration, memory, skills, MCP — all on mobile
-- Supports real-time streaming and Thinking chain display
-- Preview mode available without connecting to a server
 
 ---
 
